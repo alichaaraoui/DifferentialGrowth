@@ -10,3 +10,6 @@ media/
 
 # editor/agent tooling
 .claude/
+.local/
+package.json
+package-lock.json

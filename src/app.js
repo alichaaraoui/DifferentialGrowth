@@ -417,9 +417,9 @@ window.addEventListener('keydown', (e) => {
   }
 });
 
-/* ---------------- recording hook ----------------------------------------- */
-// scripts/record.mjs drives the simulation frame by frame to capture video at
-// an exact framerate. Inert during normal use.
+/* ---------------- console access ----------------------------------------- */
+// Drive the simulation from the devtools console: step it by hand, read the
+// node list, or script it frame by frame. Nothing in the page depends on this.
 window.__dg = { sim, renderer, state, setRunning, loadSeed, updateInset };
 
 /* ---------------- start -------------------------------------------------- */
