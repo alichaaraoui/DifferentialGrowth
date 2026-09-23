@@ -107,6 +107,35 @@ function restart() {
   setRunning(true);
 }
 
+/* ---------------- keep the drawing clear of the floating furniture ------- */
+const GAP = 26;
+
+function updateInset() {
+  const rackEl = $('rack');
+  const hidden = rackEl.getAttribute('data-hidden') === 'true';
+  const transport = document.querySelector('.transport').getBoundingClientRect();
+  const bottom = Math.max(GAP, window.innerHeight - transport.top + 14);
+
+  if (hidden) {
+    renderer.setInset({ left: GAP, right: GAP, top: GAP, bottom });
+    return;
+  }
+
+  const rackBox = rackEl.getBoundingClientRect();
+  if (window.innerWidth <= 900) {
+    // the rack docks to the bottom on narrow screens
+    renderer.setInset({
+      left: GAP, right: GAP, top: GAP,
+      bottom: Math.max(bottom, window.innerHeight - rackBox.top + 14),
+    });
+  } else {
+    renderer.setInset({ left: rackBox.right + GAP, right: GAP, top: GAP, bottom });
+  }
+}
+
+window.addEventListener('resize', updateInset);
+new ResizeObserver(updateInset).observe($('rack'));
+
 /* ---------------- loop --------------------------------------------------- */
 let lastReadout = 0;
 
@@ -244,6 +273,7 @@ $('toggle-rack').addEventListener('click', toggleRack);
 function toggleRack() {
   const hidden = rack.getAttribute('data-hidden') === 'true';
   rack.setAttribute('data-hidden', hidden ? 'false' : 'true');
+  updateInset();
   $('toggle-rack').title = hidden ? 'hide rack  (h)' : 'show rack  (h)';
   $('toggle-rack').setAttribute('aria-label', hidden ? 'Hide rack' : 'Show rack');
 }
@@ -304,7 +334,7 @@ function enterDrawMode() {
   sim.closed = false;
   $('closed-select').value = 'open';
   renderer.clearTrail();
-  renderer.lockView(Math.min(window.innerWidth, window.innerHeight) / 46);
+  renderer.lockView();
   spark.clear();
 }
 
@@ -352,6 +382,7 @@ canvas.addEventListener('pointerup', () => {
   sim.seed(seeded.points, seeded.closed);
   state.seed = 'stroke';
   state.strokeSeed = seeded;
+  $('seed-select').value = 'stroke';
   $('closed-select').value = seeded.closed ? 'closed' : 'open';
   renderer.resetView();
   spark.clear();
@@ -377,6 +408,7 @@ window.addEventListener('keydown', (e) => {
 
 /* ---------------- start -------------------------------------------------- */
 $('stage-note').textContent = STAGE_NOTES[5].toLowerCase();
+updateInset();
 loadSeed('circle');
 for (let i = 0; i < 70; i++) {
   sim.step();

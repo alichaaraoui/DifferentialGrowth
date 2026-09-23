@@ -13,11 +13,26 @@ export class Renderer {
     this.canvas = canvas;
     this.ctx = canvas.getContext('2d');
     this.view = { cx: 0, cy: 0, scale: 20, locked: false };
+    // Region of the window the curve should fit inside, so the floating rack
+    // and transport do not sit on top of the drawing.
+    this.inset = { left: 0, right: 0, top: 0, bottom: 0 };
     this.trail = [];
     this.trailMax = 34;
     this.showNodes = false;
     this.showTrail = false;
     this.lineWeight = 1.2;
+  }
+
+  setInset(inset) {
+    this.inset = { ...this.inset, ...inset };
+  }
+
+  /** The drawable rectangle in CSS pixels, and its centre. */
+  viewport() {
+    const { left, right, top, bottom } = this.inset;
+    const w = Math.max(120, window.innerWidth - left - right);
+    const h = Math.max(120, window.innerHeight - top - bottom);
+    return { w, h, cx: left + w / 2, cy: top + h / 2 };
   }
 
   resetView() {
@@ -26,10 +41,11 @@ export class Renderer {
   }
 
   /** Freeze the camera at a fixed frame — used while drawing. */
-  lockView(scale) {
+  lockView() {
+    const vp = this.viewport();
     this.view.cx = 0;
     this.view.cy = 0;
-    this.view.scale = scale;
+    this.view.scale = Math.min(vp.w, vp.h) / 42;
     this.view.locked = true;
   }
 
@@ -61,8 +77,9 @@ export class Renderer {
     return { w, h, dpr };
   }
 
-  #fit(nodes, w, h) {
+  #fit(nodes) {
     if (this.view.locked || !nodes.length) return;
+    const vp = this.viewport();
 
     let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
     for (const n of nodes) {
@@ -74,7 +91,7 @@ export class Renderer {
 
     const bw = Math.max(maxX - minX, 4);
     const bh = Math.max(maxY - minY, 4);
-    const target = Math.min(w / (bw * 1.3), h / (bh * 1.3));
+    const target = Math.min(vp.w / (bw * 1.22), vp.h / (bh * 1.22));
     const tx = (minX + maxX) / 2;
     const ty = (minY + maxY) / 2;
 
@@ -90,16 +107,17 @@ export class Renderer {
     this.view.cy += (ty - this.view.cy) * ease;
   }
 
-  #trace(source, flat, closed, w, h) {
+  #trace(source, flat, closed) {
     const { cx, cy, scale } = this.view;
+    const vp = this.viewport();
     const count = flat ? source.length / 2 : source.length;
     if (count < 2) return;
 
     for (let i = 0; i < count; i++) {
       const px = flat ? source[i * 2] : source[i].x;
       const py = flat ? source[i * 2 + 1] : source[i].y;
-      const sx = (px - cx) * scale + w / 2;
-      const sy = (py - cy) * scale + h / 2;
+      const sx = (px - cx) * scale + vp.cx;
+      const sy = (py - cy) * scale + vp.cy;
       if (i === 0) this.ctx.moveTo(sx, sy);
       else this.ctx.lineTo(sx, sy);
     }
@@ -110,7 +128,7 @@ export class Renderer {
     const { w, h, dpr } = this.#size();
     const ctx = this.ctx;
 
-    this.#fit(sim.nodes, w, h);
+    this.#fit(sim.nodes);
 
     ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
     ctx.clearRect(0, 0, w, h);
@@ -123,7 +141,7 @@ export class Renderer {
       for (let i = 0; i < this.trail.length; i++) {
         ctx.globalAlpha = 0.03 + 0.09 * (i / this.trail.length);
         ctx.beginPath();
-        this.#trace(this.trail[i], true, sim.closed, w, h);
+        this.#trace(this.trail[i], true, sim.closed);
         ctx.stroke();
       }
       ctx.globalAlpha = 1;
@@ -132,16 +150,17 @@ export class Renderer {
     ctx.strokeStyle = colors.curve;
     ctx.lineWidth = this.lineWeight;
     ctx.beginPath();
-    this.#trace(sim.nodes, false, sim.closed, w, h);
+    this.#trace(sim.nodes, false, sim.closed);
     ctx.stroke();
 
     if (this.showNodes && sim.nodes.length <= 2600) {
       const { cx, cy, scale } = this.view;
+      const vp = this.viewport();
       const r = Math.max(0.8, Math.min(2.2, scale * 0.09));
       ctx.fillStyle = colors.node;
       for (const n of sim.nodes) {
         ctx.beginPath();
-        ctx.arc((n.x - cx) * scale + w / 2, (n.y - cy) * scale + h / 2, r, 0, Math.PI * 2);
+        ctx.arc((n.x - cx) * scale + vp.cx, (n.y - cy) * scale + vp.cy, r, 0, Math.PI * 2);
         ctx.fill();
       }
     }
@@ -161,9 +180,10 @@ export class Renderer {
 
   screenToWorld(clientX, clientY) {
     const { cx, cy, scale } = this.view;
+    const vp = this.viewport();
     return {
-      x: (clientX - window.innerWidth / 2) / scale + cx,
-      y: (clientY - window.innerHeight / 2) / scale + cy,
+      x: (clientX - vp.cx) / scale + cx,
+      y: (clientY - vp.cy) / scale + cy,
     };
   }
 }
