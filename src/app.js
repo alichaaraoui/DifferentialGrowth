@@ -1,10 +1,11 @@
 /**
- * UI wiring. Owns the simulation, the renderer and every control.
+ * UI wiring. Owns the simulation, the renderer and the control rack.
  */
 
 import { DifferentialGrowth, STAGES, STAGE_NOTES, distance } from './growth.js';
 import { SEEDS, fromStroke } from './seeds.js';
 import { Renderer, Sparkline } from './renderer.js';
+import { Slider } from './slider.js';
 
 const $ = (id) => document.getElementById(id);
 
@@ -21,7 +22,6 @@ const state = {
   drawMode: false,
 };
 
-/* ---------------- theme colours straight from the stylesheet ------------- */
 const readVar = (name) =>
   getComputedStyle(document.documentElement).getPropertyValue(name).trim();
 
@@ -30,8 +30,59 @@ const colors = () => ({
   node: readVar('--node'),
   accent: readVar('--accent'),
   hair: readVar('--hair'),
-  ground: readVar('--ground'),
+  ground: readVar('--field'),
 });
+
+/* ---------------- knobs -------------------------------------------------- */
+const decimals = (n) => (v) => v.toFixed(n);
+const CAP_MAX = 2050;
+
+const controls = {
+  repulsion: new Slider($('k-rep'), {
+    label: 'repulsion', min: 0, max: 0.15, step: 0.005, value: 0.05,
+    format: decimals(3), onChange: (v) => (sim.params.repulsionForce = v),
+    toggle: (on) => setRule('repulsion', on),
+  }),
+  attraction: new Slider($('k-att'), {
+    label: 'attraction', min: 0, max: 0.15, step: 0.005, value: 0.05,
+    format: decimals(3), onChange: (v) => (sim.params.attractionForce = v),
+    toggle: (on) => setRule('attraction', on),
+  }),
+  alignment: new Slider($('k-ali'), {
+    label: 'alignment', min: 0, max: 0.06, step: 0.002, value: 0.01,
+    format: decimals(3), onChange: (v) => (sim.params.alignmentForce = v),
+    toggle: (on) => setRule('alignment', on),
+  }),
+  jitter: new Slider($('k-brw'), {
+    label: 'jitter', min: 0, max: 0.6, step: 0.01, value: 0.15,
+    format: decimals(2), onChange: (v) => (sim.params.brownianRange = v),
+    toggle: (on) => setRule('brownian', on),
+  }),
+  detail: new Slider($('k-detail'), {
+    label: 'detail', min: 0.4, max: 3, step: 0.05, value: 1,
+    format: decimals(2), onChange: (v) => (sim.params.maxDistance = v),
+  }),
+  radius: new Slider($('k-radius'), {
+    label: 'radius', min: 0.5, max: 6, step: 0.1, value: 2,
+    format: decimals(1), onChange: (v) => (sim.params.repulsionRadius = v),
+  }),
+  speed: new Slider($('k-speed'), {
+    label: 'speed', min: 1, max: 8, step: 1, value: 2,
+    format: (v) => `${v}x`, onChange: (v) => (state.speed = v),
+  }),
+  cap: new Slider($('k-cap'), {
+    label: 'stop at', min: 50, max: CAP_MAX, step: 50, value: CAP_MAX,
+    format: (v) => (v >= CAP_MAX ? '∞' : String(v)),
+    onChange: (v) => {
+      state.cap = v >= CAP_MAX ? Infinity : v;
+      if (sim.iteration < state.cap && !state.running) setRunning(true);
+    },
+  }),
+  weight: new Slider($('k-weight'), {
+    label: 'line weight', min: 0.4, max: 4, step: 0.1, value: 1.2,
+    format: decimals(1), onChange: (v) => (renderer.lineWeight = v),
+  }),
+};
 
 /* ---------------- seeding ------------------------------------------------ */
 function loadSeed(name) {
@@ -39,9 +90,10 @@ function loadSeed(name) {
   sim.seed(points, closed);
   state.seed = name;
   state.strokeSeed = null;
+  $('seed-select').value = name;
+  $('closed-select').value = closed ? 'closed' : 'open';
   renderer.resetView();
   spark.clear();
-  setPressed('t-closed', closed);
 }
 
 function restart() {
@@ -55,7 +107,7 @@ function restart() {
   setRunning(true);
 }
 
-/* ---------------- main loop ---------------------------------------------- */
+/* ---------------- loop --------------------------------------------------- */
 let lastReadout = 0;
 
 function frame(now) {
@@ -86,15 +138,17 @@ function frame(now) {
 }
 
 /* ---------------- transport ---------------------------------------------- */
-const PAUSE_ICON = '<rect x="6.5" y="5" width="4" height="14" rx="1.4"/><rect x="13.5" y="5" width="4" height="14" rx="1.4"/>';
+const PAUSE_ICON = '<rect x="6.5" y="5" width="4" height="14" rx="1.3"/><rect x="13.5" y="5" width="4" height="14" rx="1.3"/>';
 const PLAY_ICON = '<path d="M7 5.2v13.6c0 .8.9 1.3 1.6.9l10.2-6.8c.6-.4.6-1.4 0-1.8L8.6 4.3C7.9 3.9 7 4.4 7 5.2z"/>';
 
 function setRunning(on) {
   state.running = on;
   $('play-icon').innerHTML = on ? PAUSE_ICON : PLAY_ICON;
-  const label = on ? 'Pause' : 'Play';
-  $('play').title = `${label}  (Space)`;
-  $('play').setAttribute('aria-label', label);
+  $('play').title = on ? 'pause  (space)' : 'play  (space)';
+  $('play').setAttribute('aria-label', on ? 'Pause' : 'Play');
+  const led = $('led');
+  led.dataset.state = on ? 'run' : 'hold';
+  led.title = on ? 'running' : 'paused';
 }
 
 $('play').addEventListener('click', () => setRunning(!state.running));
@@ -106,98 +160,69 @@ $('step').addEventListener('click', () => {
 $('reset').addEventListener('click', restart);
 $('clear').addEventListener('click', clearAndDraw);
 
-/* ---------------- panel -------------------------------------------------- */
-function setPressed(id, on) {
-  $(id)?.setAttribute('aria-pressed', on ? 'true' : 'false');
-}
-
-function selectOne(container, target) {
-  for (const b of container.querySelectorAll('button')) {
-    b.setAttribute('aria-pressed', b === target ? 'true' : 'false');
-  }
-}
-
-$('seeds').addEventListener('click', (e) => {
-  const btn = e.target.closest('button');
-  if (!btn) return;
-  selectOne($('seeds'), btn);
-  if (btn.dataset.seed === 'draw') {
-    enterDrawMode();
-  } else {
-    exitDrawMode();
-    loadSeed(btn.dataset.seed);
-    setRunning(true);
-  }
+/* ---------------- rack --------------------------------------------------- */
+$('seed-select').addEventListener('change', (e) => {
+  exitDrawMode();
+  $('draw-btn').setAttribute('aria-pressed', 'false');
+  loadSeed(e.target.value);
+  setRunning(true);
 });
+
+$('closed-select').addEventListener('change', (e) => {
+  sim.closed = e.target.value === 'closed';
+});
+
+$('draw-btn').addEventListener('click', clearAndDraw);
+
+function selectStage(stage) {
+  for (const b of $('stages').querySelectorAll('button')) {
+    b.setAttribute('aria-pressed', b.dataset.stage === stage ? 'true' : 'false');
+  }
+  for (const [key, on] of Object.entries(STAGES[stage])) {
+    sim.rules[key] = on;
+    setLed(key, on);
+  }
+  $('stage-note').textContent = STAGE_NOTES[stage].toLowerCase();
+  restart();
+}
 
 $('stages').addEventListener('click', (e) => {
   const btn = e.target.closest('button');
-  if (!btn) return;
-  selectOne($('stages'), btn);
-  const rules = STAGES[btn.dataset.stage];
-  for (const [key, on] of Object.entries(rules)) {
-    sim.rules[key] = on;
-    $(`w-${key}`).checked = on;
-  }
-  $('stage-caption').textContent = STAGE_NOTES[btn.dataset.stage];
-  restart();
+  if (btn) selectStage(btn.dataset.stage);
 });
 
-for (const key of ['repulsion', 'attraction', 'alignment', 'brownian']) {
-  $(`w-${key}`).addEventListener('change', (e) => {
-    sim.rules[key] = e.target.checked;
-    selectOne($('stages'), null);
-    $('stage-caption').textContent = 'Custom rule set.';
-  });
+const RULE_SLIDER = {
+  repulsion: 'repulsion', attraction: 'attraction',
+  alignment: 'alignment', brownian: 'jitter',
+};
+
+function setLed(rule, on) {
+  controls[RULE_SLIDER[rule]]?.setEnabled(on);
 }
 
-function bindSlider(id, out, apply, format) {
-  const el = $(id);
-  const label = $(out);
-  const handle = () => {
-    const value = parseFloat(el.value);
-    apply(value);
-    label.innerHTML = format(value);
-  };
-  el.addEventListener('input', handle);
-  handle();
+/** Toggling a rule by hand leaves the numbered stages behind. */
+function setRule(rule, on) {
+  sim.rules[rule] = on;
+  for (const b of $('stages').querySelectorAll('button')) b.setAttribute('aria-pressed', 'false');
+  $('stage-note').textContent = 'custom rule set.';
 }
-
-const fixed = (n) => (v) => v.toFixed(n);
-bindSlider('p-max', 'v-max', (v) => (sim.params.maxDistance = v), fixed(2));
-bindSlider('p-rad', 'v-rad', (v) => (sim.params.repulsionRadius = v), fixed(2));
-bindSlider('p-rep', 'v-rep', (v) => (sim.params.repulsionForce = v), fixed(3));
-bindSlider('p-att', 'v-att', (v) => (sim.params.attractionForce = v), fixed(3));
-bindSlider('p-ali', 'v-ali', (v) => (sim.params.alignmentForce = v), fixed(3));
-bindSlider('p-brw', 'v-brw', (v) => (sim.params.brownianRange = v), fixed(3));
-bindSlider('p-spd', 'v-spd', (v) => (state.speed = v), (v) => String(v));
-bindSlider('p-lw', 'v-lw', (v) => (renderer.lineWeight = v), fixed(1));
-bindSlider(
-  'p-cap',
-  'v-cap',
-  (v) => {
-    // The top of the range means no cap.
-    state.cap = v >= 2050 ? Infinity : v;
-    if (sim.iteration < state.cap) setRunning(state.running);
-  },
-  (v) => (v >= 2050 ? '&#8734;' : String(v)),
-);
 
 $('t-nodes').addEventListener('click', () => {
   renderer.showNodes = !renderer.showNodes;
-  setPressed('t-nodes', renderer.showNodes);
+  $('t-nodes').setAttribute('aria-pressed', String(renderer.showNodes));
 });
 $('t-trails').addEventListener('click', () => {
   renderer.showTrail = !renderer.showTrail;
   if (!renderer.showTrail) renderer.clearTrail();
-  setPressed('t-trails', renderer.showTrail);
-});
-$('t-closed').addEventListener('click', () => {
-  sim.closed = !sim.closed;
-  setPressed('t-closed', sim.closed);
+  $('t-trails').setAttribute('aria-pressed', String(renderer.showTrail));
 });
 
-/* tabs */
+$('reset-settings').addEventListener('click', () => {
+  for (const control of Object.values(controls)) control.reset();
+  selectStage('5');
+  toast('settings reset');
+});
+
 const tabs = [
   [$('tab-controls'), $('view-controls')],
   [$('tab-about'), $('view-about')],
@@ -206,22 +231,21 @@ for (const [tab, view] of tabs) {
   tab.addEventListener('click', () => {
     for (const [t, v] of tabs) {
       const active = t === tab;
-      t.setAttribute('aria-selected', active ? 'true' : 'false');
+      t.setAttribute('aria-selected', String(active));
       v.hidden = !active;
     }
     view.scrollTop = 0;
   });
 }
 
-const panel = $('panel');
-$('toggle-panel').addEventListener('click', togglePanel);
+const rack = $('rack');
+$('toggle-rack').addEventListener('click', toggleRack);
 
-function togglePanel() {
-  const hidden = panel.getAttribute('data-hidden') === 'true';
-  panel.setAttribute('data-hidden', hidden ? 'false' : 'true');
-  const label = hidden ? 'Hide panel' : 'Show panel';
-  $('toggle-panel').title = `${label}  (H)`;
-  $('toggle-panel').setAttribute('aria-label', label);
+function toggleRack() {
+  const hidden = rack.getAttribute('data-hidden') === 'true';
+  rack.setAttribute('data-hidden', hidden ? 'false' : 'true');
+  $('toggle-rack').title = hidden ? 'hide rack  (h)' : 'show rack  (h)';
+  $('toggle-rack').setAttribute('aria-label', hidden ? 'Hide rack' : 'Show rack');
 }
 
 /* ---------------- export ------------------------------------------------- */
@@ -242,14 +266,14 @@ function toast(message) {
 $('copy').addEventListener('click', () => {
   renderer.toExportCanvas(colors().ground).toBlob(async (blob) => {
     if (!blob || !navigator.clipboard || !window.ClipboardItem) {
-      toast('Clipboard unavailable — use download instead');
+      toast('clipboard unavailable — use download instead');
       return;
     }
     try {
       await navigator.clipboard.write([new ClipboardItem({ 'image/png': blob })]);
-      toast('Copied to clipboard');
+      toast('copied to clipboard');
     } catch {
-      toast('Clipboard blocked — use download instead');
+      toast('clipboard blocked — use download instead');
     }
   }, 'image/png');
 });
@@ -263,7 +287,7 @@ $('download').addEventListener('click', () => {
     a.download = `differential-growth-${sim.iteration}i-${sim.nodes.length}n.png`;
     a.click();
     URL.revokeObjectURL(url);
-    toast('Saved PNG');
+    toast('saved png');
   }, 'image/png');
 });
 
@@ -275,9 +299,10 @@ function enterDrawMode() {
   state.drawMode = true;
   canvas.classList.add('drawing');
   $('hint').hidden = false;
+  $('draw-btn').setAttribute('aria-pressed', 'true');
   sim.seed([], false);
   sim.closed = false;
-  setPressed('t-closed', false);
+  $('closed-select').value = 'open';
   renderer.clearTrail();
   renderer.lockView(Math.min(window.innerWidth, window.innerHeight) / 46);
   spark.clear();
@@ -291,7 +316,6 @@ function exitDrawMode() {
 }
 
 function clearAndDraw() {
-  selectOne($('seeds'), $('seeds').querySelector('[data-seed="draw"]'));
   enterDrawMode();
 }
 
@@ -316,11 +340,11 @@ canvas.addEventListener('pointerup', () => {
   const raw = stroke;
   stroke = null;
   exitDrawMode();
+  $('draw-btn').setAttribute('aria-pressed', 'false');
 
   const seeded = fromStroke(raw, sim.params.maxDistance * 0.9);
   if (!seeded) {
     loadSeed('circle');
-    selectOne($('seeds'), $('seeds').querySelector('[data-seed="circle"]'));
     setRunning(true);
     return;
   }
@@ -328,7 +352,7 @@ canvas.addEventListener('pointerup', () => {
   sim.seed(seeded.points, seeded.closed);
   state.seed = 'stroke';
   state.strokeSeed = seeded;
-  setPressed('t-closed', seeded.closed);
+  $('closed-select').value = seeded.closed ? 'closed' : 'open';
   renderer.resetView();
   spark.clear();
   setRunning(true);
@@ -337,19 +361,22 @@ canvas.addEventListener('pointerup', () => {
 /* ---------------- keys --------------------------------------------------- */
 window.addEventListener('keydown', (e) => {
   const tag = e.target.tagName;
-  if (tag === 'INPUT' || tag === 'BUTTON' || tag === 'TEXTAREA') return;
+  if (tag === 'INPUT' || tag === 'SELECT' || tag === 'TEXTAREA') return;
+  if (e.target.closest('.knob-dial')) return;
   if (e.metaKey || e.ctrlKey || e.altKey) return;
 
   switch (e.key.toLowerCase()) {
     case ' ': e.preventDefault(); setRunning(!state.running); break;
     case 's': setRunning(false); sim.step(); break;
     case 'r': restart(); break;
-    case 'c': clearAndDraw(); break;
-    case 'h': togglePanel(); break;
+    case 'd': clearAndDraw(); break;
+    case 'h': toggleRack(); break;
+    default: return;
   }
 });
 
 /* ---------------- start -------------------------------------------------- */
+$('stage-note').textContent = STAGE_NOTES[5].toLowerCase();
 loadSeed('circle');
 for (let i = 0; i < 70; i++) {
   sim.step();
