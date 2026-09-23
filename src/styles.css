@@ -329,16 +329,16 @@ select:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
   line-height:1.5;
   color:var(--ink-faint);
 }
-.stack{display:flex;flex-direction:column;gap:15px}
+.stack{display:flex;flex-direction:column;gap:21px}
 
 .ctl-head{
   display:flex;
   align-items:center;
   gap:8px;
-  margin-bottom:7px;
+  margin-bottom:11px;
 }
 .ctl-head label{
-  font-size:12.5px;
+  font-size:13px;
   font-weight:500;
   color:var(--ink);
   cursor:pointer;
@@ -346,7 +346,7 @@ select:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
 .ctl-head b{
   margin-left:auto;
   font-family:"DM Mono",ui-monospace,monospace;
-  font-size:11px;
+  font-size:11.5px;
   font-weight:400;
   font-variant-numeric:tabular-nums;
   color:var(--accent);
@@ -371,43 +371,38 @@ select:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
 }
 .led-btn:focus-visible{outline:2px solid var(--accent);outline-offset:3px}
 
+/* Flat hairline track, no fill — the square thumb carries the whole signal. */
 input[type=range]{
   -webkit-appearance:none;
   appearance:none;
   width:100%;
-  height:16px;
+  height:14px;
   background:transparent;
   margin:0;
   display:block;
   cursor:pointer;
 }
 input[type=range]::-webkit-slider-runnable-track{
-  height:4px;
-  border-radius:100px;
-  background:linear-gradient(to right,
-    var(--accent) 0 var(--pct, 0%), var(--knob-track) var(--pct, 0%) 100%);
+  height:2px;
+  border-radius:0;
+  background:var(--knob-track);
 }
 input[type=range]::-webkit-slider-thumb{
   -webkit-appearance:none;
-  width:14px;height:14px;
+  width:12px;height:12px;
   margin-top:-5px;
-  border-radius:50%;
-  background:#fff;
+  border-radius:2px;
+  background:var(--accent);
   border:0;
-  box-shadow:0 1px 3px rgba(24,24,27,.32), 0 0 0 1px rgba(24,24,27,.06);
 }
 input[type=range]::-moz-range-track{
-  height:4px;border-radius:100px;background:var(--knob-track);
-}
-input[type=range]::-moz-range-progress{
-  height:4px;border-radius:100px;background:var(--accent);
+  height:2px;border-radius:0;background:var(--knob-track);
 }
 input[type=range]::-moz-range-thumb{
-  width:14px;height:14px;border-radius:50%;
-  background:#fff;border:0;
-  box-shadow:0 1px 3px rgba(24,24,27,.32);
+  width:12px;height:12px;border-radius:2px;
+  background:var(--accent);border:0;
 }
-input[type=range]:focus-visible{outline:2px solid var(--accent);outline-offset:4px;border-radius:100px}
+input[type=range]:focus-visible{outline:2px solid var(--accent);outline-offset:4px;border-radius:2px}
 
 /* ---------- chips ---------- */
 .chips{display:flex;gap:6px}

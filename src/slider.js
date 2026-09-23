@@ -63,8 +63,6 @@ export class Slider {
   }
 
   render() {
-    const pct = ((this.value - this.min) / (this.max - this.min)) * 100;
-    this.input.style.setProperty('--pct', `${pct}%`);
     this.readout.textContent = this.format(this.value);
   }
 
