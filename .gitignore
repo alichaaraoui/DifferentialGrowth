@@ -3,3 +3,7 @@ node_modules/
 *.log
 .vscode/
 .idea/
+
+# generated media — regenerate with `npm run record`
+media/
+.record-tmp/

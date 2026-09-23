@@ -121,16 +121,21 @@ const GAP = 26;
 
 function updateInset() {
   const rackEl = $('rack');
-  const hidden = rackEl.getAttribute('data-hidden') === 'true';
+  const rackBox = rackEl.getBoundingClientRect();
   const transport = document.querySelector('.transport').getBoundingClientRect();
-  const bottom = Math.max(GAP, window.innerHeight - transport.top + 14);
+
+  // A display:none element measures as a zero rect at the origin, which would
+  // otherwise read as "this thing covers everything above it".
+  const bottom = transport.height
+    ? Math.max(GAP, window.innerHeight - transport.top + 14)
+    : GAP;
+  const hidden = rackEl.getAttribute('data-hidden') === 'true' || rackBox.width === 0;
 
   if (hidden) {
     renderer.setInset({ left: GAP, right: GAP, top: GAP, bottom });
     return;
   }
 
-  const rackBox = rackEl.getBoundingClientRect();
   if (window.innerWidth <= 900) {
     // the rack docks to the bottom on narrow screens
     renderer.setInset({
@@ -411,6 +416,11 @@ window.addEventListener('keydown', (e) => {
     default: return;
   }
 });
+
+/* ---------------- recording hook ----------------------------------------- */
+// scripts/record.mjs drives the simulation frame by frame to capture video at
+// an exact framerate. Inert during normal use.
+window.__dg = { sim, renderer, state, setRunning, loadSeed, updateInset };
 
 /* ---------------- start -------------------------------------------------- */
 $('stage-note').textContent = STAGE_NOTES[5].toLowerCase();

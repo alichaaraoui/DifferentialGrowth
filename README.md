@@ -94,6 +94,21 @@ as you go makes the result depend on the order they happen to be stored in.
 its single neighbour and is skipped by alignment, since it has no midpoint to align to.
 The closing edge is excluded from subdivision and pruning when the curve is open.
 
+## Recording the clips
+
+`scripts/record.mjs` drives the app with Playwright and encodes with
+`ffmpeg-static`, so no system ffmpeg is needed.
+
+```bash
+npm install
+npx playwright install chromium
+npm run record
+```
+
+It writes `media/01-growth.mp4` (1080x1080, frame-by-frame against a paused
+simulation, so it is identical on every run) and `media/02-interface.mp4`
+(a scripted walkthrough recorded in real time).
+
 ## Credits
 
 Built by **Ali Chaaraoui** and **Jay Anupoju**.
