@@ -28,6 +28,7 @@ over the split threshold so growth does not stall.
 ## What is in here
 
 ```
+notebook/           the original Python/NumPy implementation
 index.html          the interface — markup and controls
 src/growth.js       the algorithm: subdivision, pruning, the four forces
 src/seeds.js        starting shapes, and resampling a freehand stroke into one
@@ -62,9 +63,30 @@ console.log(sim.nodes.length);
 - Growth rings — the last 34 curves stroked faintly underneath, as contour lines
 - Export to PNG by download or clipboard
 
+## The notebook
+
+[`notebook/differential-growth.ipynb`](notebook/differential-growth.ipynb) is where the
+algorithm was worked out, in Python and NumPy. It builds the rules up one at a time and
+checks them by arithmetic rather than by eye — four nodes on a circle of radius 5 gives a
+square with sides of exactly 5√2, so subdivision is predicted to go 4 → 8 → 16 → 32 with
+edges halving each pass, and either it does or the code is wrong.
+
+**The app does not run the notebook.** `src/growth.js` is a hand-written port, so the two
+are independent implementations of the same rules. The names were kept deliberately:
+
+| notebook | `src/growth.js` |
+|---|---|
+| `splitEdges` | `#split` |
+| `pruneNodes` | `#prune` |
+| `applyRepulsion` | `#repel` — same rule, spatially hashed |
+| `applyAttraction`, `applyAlignment` | `#neighbourForces` — one pass, same two neighbours |
+| `applyBrownianMotion` | `#jitter` |
+| `getConnectedNode` | index wrapping, inline |
+| `Particle`, `as_array` | plain `{ x, y }` objects; JavaScript needs no bridge to an array |
+
 ## Notes on the implementation
 
-Ported from the Python/NumPy notebook this began as, with three changes that matter.
+Three things differ from the notebook.
 
 **Repulsion is spatially hashed.** Comparing every node against every other is
 O(n²) — fine to about a thousand nodes and slow beyond it. Nodes are bucketed into a
