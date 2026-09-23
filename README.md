@@ -1,0 +1,108 @@
+# Differential Growth
+
+An interactive differential growth simulator. Seed a shape or draw your own, switch
+the rules on one at a time, and watch a curve fold itself.
+
+**[Live demo →](https://alichaaraoui.github.io/differential-growth/)**
+
+![Differential growth](docs/preview.png)
+
+---
+
+## What it does
+
+The curve is an ordered list of nodes. Two rules do all the work:
+
+- **Subdivision** inserts a new node in the middle of any edge that stretches past a
+  threshold. It is the only source of new nodes.
+- **Repulsion** pushes every node away from any other node that comes too close —
+  including nodes far away along the curve that have folded round next to it.
+
+Subdivision supplies material; repulsion stretches the edges back past the threshold
+so subdivision fires again. That feedback is the growth. The folds are what a curve
+does when it is forced to get longer inside a space that is not getting bigger — the
+same process behind cabbage leaves, coral, gut lining and cortical folding.
+
+Three more rules shape the result without driving it: **attraction** holds neighbours
+together, **alignment** rounds off corners, and **jitter** keeps knocking edges back
+over the split threshold so growth does not stall.
+
+## Features
+
+- Seven seed shapes plus freehand drawing on the canvas
+- **Open and closed curves.** `Line` and `Arc` seed an open curve, which grows outward
+  from its tips rather than ruffling inward
+- Numbered build stages that enable the rules one at a time, so each isolates a single
+  contribution
+- Every parameter live: split threshold, repulsion radius, all four force strengths,
+  simulation speed and an iteration cap
+- Growth rings — the last 34 curves stroked faintly underneath, as contour lines
+- Export to PNG by download or clipboard
+
+## Running it
+
+Plain static files with no build step, but the ES modules need to be served over HTTP
+rather than opened from disk:
+
+```bash
+python3 -m http.server 8000
+```
+
+Then open <http://localhost:8000>.
+
+## Deploying
+
+Pushing to `main` publishes to GitHub Pages via `.github/workflows/deploy.yml`. Enable
+it once under **Settings → Pages → Source → GitHub Actions**.
+
+## Structure
+
+```
+index.html          markup and controls
+src/styles.css      tokens and layout, light + dark
+src/growth.js       the algorithm — no DOM, no canvas
+src/seeds.js        starting shapes, freehand resampling
+src/renderer.js     canvas drawing, auto-fitting camera, sparkline
+src/app.js          UI wiring
+```
+
+`src/growth.js` has no dependency on the browser and can be imported on its own.
+
+```js
+import { DifferentialGrowth } from './src/growth.js';
+
+const sim = new DifferentialGrowth({ maxDistance: 1.0, repulsionRadius: 2.0 });
+sim.seed([{ x: -5, y: 0 }, { x: 5, y: 0 }], false); // open curve
+for (let i = 0; i < 200; i++) sim.step();
+console.log(sim.nodes.length);
+```
+
+## Notes on the implementation
+
+Ported from a Python/NumPy notebook written for Dr. Ferdousi's research group, with
+two changes that matter.
+
+**Repulsion is spatially hashed.** Comparing every node against every other is
+O(n²) — fine to about a thousand nodes and slow beyond it. Nodes are bucketed into a
+grid of cells the size of the repulsion radius, so each node only tests the nine cells
+around it. That is close to O(n) for the near-uniform spacing subdivision produces, and
+holds a steady frame rate to several thousand nodes.
+
+**Forces return displacements rather than moving nodes.** Every force is evaluated
+against the same unchanged snapshot and applied in one pass at the end. Moving nodes
+as you go makes the result depend on the order they happen to be stored in.
+
+**Endpoints are handled explicitly** so open curves work. An endpoint attracts toward
+its single neighbour and is skipped by alignment, since it has no midpoint to align to.
+The closing edge is excluded from subdivision and pruning when the curve is open.
+
+## Credits
+
+Built by **Ali Chaaraoui** and **Jay Anupoju**.
+
+- [Jason Webb — *2D Differential Growth in JS*](https://medium.com/@jason.webb/2d-differential-growth-in-js-1843fd51b0ce)
+- [Kaspar — *Differential Growth*](https://www.kaspar.wtf/blog/differential-growth)
+
+## License
+
+MIT — see [LICENSE](LICENSE).
