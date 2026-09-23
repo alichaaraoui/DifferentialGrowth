@@ -25,7 +25,32 @@ Three more rules shape the result without driving it: **attraction** holds neigh
 together, **alignment** rounds off corners, and **jitter** keeps knocking edges back
 over the split threshold so growth does not stall.
 
-## Features
+## What is in here
+
+```
+index.html          the interface — markup and controls
+src/growth.js       the algorithm: subdivision, pruning, the four forces
+src/seeds.js        starting shapes, and resampling a freehand stroke into one
+src/renderer.js     canvas drawing, the auto-fitting camera, the sparkline
+src/slider.js       labelled slider with an optional enable LED
+src/select.js       styled listbox over a native <select>
+src/app.js          wiring between the controls and the simulation
+src/styles.css      tokens and layout, light and dark
+```
+
+No dependencies and no build step. `src/growth.js` has no dependency on the browser
+either — no DOM, no canvas — so it can be imported on its own:
+
+```js
+import { DifferentialGrowth } from './src/growth.js';
+
+const sim = new DifferentialGrowth({ maxDistance: 1.0, repulsionRadius: 2.0 });
+sim.seed([{ x: -5, y: 0 }, { x: 5, y: 0 }], false); // open curve
+for (let i = 0; i < 200; i++) sim.step();
+console.log(sim.nodes.length);
+```
+
+## The interface
 
 - Seven seed shapes plus freehand drawing on the canvas
 - **Open and closed curves.** `Line` and `Arc` seed an open curve, which grows outward
@@ -37,54 +62,15 @@ over the split threshold so growth does not stall.
 - Growth rings — the last 34 curves stroked faintly underneath, as contour lines
 - Export to PNG by download or clipboard
 
-## Running it
-
-Plain static files with no build step, but the ES modules need to be served over HTTP
-rather than opened from disk:
-
-```bash
-python3 -m http.server 8000
-```
-
-Then open <http://localhost:8000>.
-
-## Deploying
-
-Pushing to `main` publishes to GitHub Pages via `.github/workflows/deploy.yml`. Enable
-it once under **Settings → Pages → Source → GitHub Actions**.
-
-## Structure
-
-```
-index.html          markup and controls
-src/styles.css      tokens and layout, light + dark
-src/growth.js       the algorithm — no DOM, no canvas
-src/seeds.js        starting shapes, freehand resampling
-src/renderer.js     canvas drawing, auto-fitting camera, sparkline
-src/app.js          UI wiring
-```
-
-`src/growth.js` has no dependency on the browser and can be imported on its own.
-
-```js
-import { DifferentialGrowth } from './src/growth.js';
-
-const sim = new DifferentialGrowth({ maxDistance: 1.0, repulsionRadius: 2.0 });
-sim.seed([{ x: -5, y: 0 }, { x: 5, y: 0 }], false); // open curve
-for (let i = 0; i < 200; i++) sim.step();
-console.log(sim.nodes.length);
-```
-
 ## Notes on the implementation
 
-Ported from a Python/NumPy notebook written for Dr. Ferdousi's research group, with
-two changes that matter.
+Ported from the Python/NumPy notebook this began as, with three changes that matter.
 
 **Repulsion is spatially hashed.** Comparing every node against every other is
 O(n²) — fine to about a thousand nodes and slow beyond it. Nodes are bucketed into a
 grid of cells the size of the repulsion radius, so each node only tests the nine cells
 around it. That is close to O(n) for the near-uniform spacing subdivision produces, and
-holds a steady frame rate to several thousand nodes.
+holds sixty frames a second to twelve thousand nodes.
 
 **Forces return displacements rather than moving nodes.** Every force is evaluated
 against the same unchanged snapshot and applied in one pass at the end. Moving nodes
@@ -100,7 +86,3 @@ Built by **Ali Chaaraoui** and **Jay Anupoju**.
 
 - [Jason Webb — *2D Differential Growth in JS*](https://medium.com/@jason.webb/2d-differential-growth-in-js-1843fd51b0ce)
 - [Kaspar — *Differential Growth*](https://www.kaspar.wtf/blog/differential-growth)
-
-## License
-
-MIT — see [LICENSE](LICENSE).
