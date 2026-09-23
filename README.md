@@ -5,8 +5,6 @@ the rules on one at a time, and watch a curve fold itself.
 
 **[Live demo →](https://alichaaraoui.github.io/differential-growth/)**
 
-![Differential growth](docs/preview.png)
-
 ---
 
 ## What it does

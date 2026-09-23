@@ -24,7 +24,7 @@ export const DEFAULTS = {
   attractionForce: 0.05,
   alignmentForce: 0.01,
   brownianRange: 0.15,
-  maxNodes: 7000,
+  maxNodes: 12000,
 };
 
 export class DifferentialGrowth {
@@ -74,12 +74,17 @@ export class DifferentialGrowth {
     const { maxDistance, maxNodes } = this.params;
     const nodes = this.nodes;
     const n = nodes.length;
+
+    // A hard ceiling. Capping midpoints per pass instead would still let the
+    // count drift upward every step, because existing nodes always carry over.
+    if (n >= maxNodes) return;
+
     const last = this.closed ? n : n - 1;
     const out = [];
 
     for (let i = 0; i < n; i++) {
       out.push(nodes[i]);
-      if (i >= last || out.length >= maxNodes) continue;
+      if (i >= last) continue;
 
       const next = nodes[(i + 1) % n];
       if (distance(nodes[i], next) >= maxDistance) {
@@ -149,9 +154,11 @@ export class DifferentialGrowth {
     const force = this.params.repulsionForce;
     const inv = 1 / radius;
 
+    // Cell coordinates are packed into one integer. Template-string keys cost
+    // an allocation per lookup, and this runs nine times per node per step.
     const grid = new Map();
     for (let i = 0; i < n; i++) {
-      const key = `${Math.floor(nodes[i].x * inv)},${Math.floor(nodes[i].y * inv)}`;
+      const key = cellKey(Math.floor(nodes[i].x * inv), Math.floor(nodes[i].y * inv));
       const cell = grid.get(key);
       if (cell) cell.push(i);
       else grid.set(key, [i]);
@@ -164,7 +171,7 @@ export class DifferentialGrowth {
 
       for (let ox = -1; ox <= 1; ox++) {
         for (let oy = -1; oy <= 1; oy++) {
-          const cell = grid.get(`${gx + ox},${gy + oy}`);
+          const cell = grid.get(cellKey(gx + ox, gy + oy));
           if (!cell) continue;
 
           for (let k = 0; k < cell.length; k++) {
@@ -236,6 +243,12 @@ export class DifferentialGrowth {
       dy[i] += (Math.random() * 2 - 1) * half;
     }
   }
+}
+
+/** Pack signed cell coordinates into a single numeric Map key. */
+const CELL_BIAS = 1 << 15;
+function cellKey(gx, gy) {
+  return (gx + CELL_BIAS) * 65536 + (gy + CELL_BIAS);
 }
 
 export function distance(a, b) {
