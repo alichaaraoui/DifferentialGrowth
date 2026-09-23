@@ -6,6 +6,7 @@ import { DifferentialGrowth, STAGES, STAGE_NOTES, distance } from './growth.js';
 import { SEEDS, fromStroke } from './seeds.js';
 import { Renderer, Sparkline } from './renderer.js';
 import { Slider } from './slider.js';
+import { enhanceSelect } from './select.js';
 
 const $ = (id) => document.getElementById(id);
 
@@ -75,7 +76,6 @@ const controls = {
     format: (v) => (v >= CAP_MAX ? '∞' : String(v)),
     onChange: (v) => {
       state.cap = v >= CAP_MAX ? Infinity : v;
-      if (sim.iteration < state.cap && !state.running) setRunning(true);
     },
   }),
   weight: new Slider($('k-weight'), {
@@ -84,14 +84,24 @@ const controls = {
   }),
 };
 
+/* ---------------- selects ------------------------------------------------ */
+enhanceSelect($('seed-select'));
+enhanceSelect($('closed-select'));
+
+function setSelect(id, value) {
+  const el = $(id);
+  el.value = value;
+  el._dd?.sync();
+}
+
 /* ---------------- seeding ------------------------------------------------ */
 function loadSeed(name) {
   const { points, closed } = SEEDS[name]();
   sim.seed(points, closed);
   state.seed = name;
   state.strokeSeed = null;
-  $('seed-select').value = name;
-  $('closed-select').value = closed ? 'closed' : 'open';
+  setSelect('seed-select', name);
+  setSelect('closed-select', closed ? 'closed' : 'open');
   renderer.resetView();
   spark.clear();
 }
@@ -104,7 +114,6 @@ function restart() {
   } else {
     loadSeed(state.seed);
   }
-  setRunning(true);
 }
 
 /* ---------------- keep the drawing clear of the floating furniture ------- */
@@ -194,7 +203,6 @@ $('seed-select').addEventListener('change', (e) => {
   exitDrawMode();
   $('draw-btn').setAttribute('aria-pressed', 'false');
   loadSeed(e.target.value);
-  setRunning(true);
 });
 
 $('closed-select').addEventListener('change', (e) => {
@@ -332,7 +340,7 @@ function enterDrawMode() {
   $('draw-btn').setAttribute('aria-pressed', 'true');
   sim.seed([], false);
   sim.closed = false;
-  $('closed-select').value = 'open';
+  setSelect('closed-select', 'open');
   renderer.clearTrail();
   renderer.lockView();
   spark.clear();
@@ -375,18 +383,16 @@ canvas.addEventListener('pointerup', () => {
   const seeded = fromStroke(raw, sim.params.maxDistance * 0.9);
   if (!seeded) {
     loadSeed('circle');
-    setRunning(true);
     return;
   }
 
   sim.seed(seeded.points, seeded.closed);
   state.seed = 'stroke';
   state.strokeSeed = seeded;
-  $('seed-select').value = 'stroke';
-  $('closed-select').value = seeded.closed ? 'closed' : 'open';
+  setSelect('seed-select', 'stroke');
+  setSelect('closed-select', seeded.closed ? 'closed' : 'open');
   renderer.resetView();
   spark.clear();
-  setRunning(true);
 });
 
 /* ---------------- keys --------------------------------------------------- */
@@ -410,8 +416,11 @@ window.addEventListener('keydown', (e) => {
 $('stage-note').textContent = STAGE_NOTES[5].toLowerCase();
 updateInset();
 loadSeed('circle');
+// Open on a grown curve rather than a bare circle, but held — pressing play
+// is the user's call, not ours.
 for (let i = 0; i < 70; i++) {
   sim.step();
   if (i % 5 === 0) spark.push(sim.nodes.length);
 }
+setRunning(false);
 requestAnimationFrame(frame);

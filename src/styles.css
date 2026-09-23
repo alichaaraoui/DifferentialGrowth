@@ -255,9 +255,12 @@ section > h2{
 }
 .arrow{color:var(--accent);font-size:14px;flex:none}
 
-select{
+.dd-btn{
   flex:1;
   min-width:0;
+  display:flex;
+  align-items:center;
+  gap:8px;
   font-family:inherit;
   font-size:12.5px;
   font-weight:500;
@@ -265,15 +268,48 @@ select{
   background:var(--raised);
   border:1px solid var(--hair);
   border-radius:8px;
-  padding:7px 26px 7px 10px;
+  padding:7px 9px 7px 10px;
   cursor:pointer;
-  appearance:none;
-  background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 12 12'%3E%3Cpath d='M2.5 4.5 6 8l3.5-3.5' fill='none' stroke='%239C9CA3' stroke-width='1.4' stroke-linecap='round'/%3E%3C/svg%3E");
-  background-repeat:no-repeat;
-  background-position:right 8px center;
-  background-size:12px;
+  text-align:left;
+  transition:border-color .14s;
 }
-select:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+.dd-btn span{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.dd-btn svg{
+  width:11px;height:11px;flex:none;
+  fill:none;stroke:var(--ink-faint);stroke-width:1.5;stroke-linecap:round;
+  transition:transform .16s ease;
+}
+.dd-btn:hover{border-color:var(--ink-faint)}
+.dd-btn[aria-expanded="true"]{border-color:var(--accent)}
+.dd-btn[aria-expanded="true"] svg{transform:rotate(180deg)}
+.dd-btn:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+
+.dd-menu{
+  position:fixed;
+  z-index:40;
+  margin:0;
+  padding:5px;
+  list-style:none;
+  background:var(--glass);
+  border:1px solid var(--glass-edge);
+  border-radius:10px;
+  box-shadow:0 14px 40px var(--glass-shade);
+  backdrop-filter:blur(30px) saturate(1.7);
+  -webkit-backdrop-filter:blur(30px) saturate(1.7);
+  max-height:min(360px,60vh);
+  overflow-y:auto;
+}
+.dd-menu li{
+  padding:7px 11px;
+  border-radius:6px;
+  font-size:12.5px;
+  font-weight:500;
+  color:var(--ink-soft);
+  cursor:pointer;
+  white-space:nowrap;
+}
+.dd-menu li.is-cursor{background:var(--accent-wash);color:var(--ink)}
+.dd-menu li[aria-selected="true"]{background:var(--accent);color:var(--accent-on)}
 
 .draw-btn{
   width:100%;
