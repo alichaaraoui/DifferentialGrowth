@@ -60,11 +60,11 @@ async function recordHero(browser, url) {
   const frames = path.join(TMP, 'hero');
   await mkdir(frames, { recursive: true });
 
-  // Square, because the site crops media with object-cover — a centred
-  // circular form survives being cut to any tile shape from a square source.
+  // 16:9, matching .project-hero on the site. object-cover crops anything
+  // that does not match, and a square source loses ~44% of its height there.
   const page = await browser.newPage({
-    viewport: { width: 540, height: 540 },
-    deviceScaleFactor: 2,        // captures at 1080x1080
+    viewport: { width: 960, height: 540 },
+    deviceScaleFactor: 2,        // captures at 1920x1080
   });
   await page.goto(url, { waitUntil: 'networkidle' });
 
@@ -76,9 +76,15 @@ async function recordHero(browser, url) {
   await page.evaluate(() => {
     const dg = window.__dg;
     dg.setRunning(false);
+    // A 1.2px line is sub-pixel once H.264 has had it. Heavier strokes survive
+    // the encode; this is a capture setting, not the app default.
+    dg.renderer.lineWeight = 2.1;
     dg.loadSeed('circle');
     dg.updateInset();
     dg.renderer.resetView();
+    // The site takes its poster frame one second in. Open on a curve that has
+    // already found its folds, so the still is worth looking at.
+    for (let i = 0; i < 150; i++) dg.sim.step();
   });
 
   console.log(`  hero: ${FRAMES} frames`);
@@ -108,8 +114,8 @@ async function recordHero(browser, url) {
   await ffmpeg([
     '-framerate', String(FPS),
     '-i', path.join(frames, '%05d.png'),
-    '-c:v', 'libx264', '-preset', 'slow', '-crf', '20',
-    '-pix_fmt', 'yuv420p', '-movflags', '+faststart',
+    '-c:v', 'libx264', '-preset', 'slow', '-crf', '14',
+    '-tune', 'animation', '-pix_fmt', 'yuv420p', '-movflags', '+faststart',
     path.join(OUT, '01-growth.mp4'),
   ]);
   console.log(`  hero done — ${nodes} nodes at the final frame`);
@@ -130,12 +136,29 @@ const CURSOR = `
 
 async function recordInterface(browser, url) {
   const context = await browser.newContext({
-    viewport: { width: 1440, height: 860 },
-    deviceScaleFactor: 1,
-    recordVideo: { dir: path.join(TMP, 'ui'), size: { width: 1440, height: 860 } },
+    viewport: { width: 1600, height: 900 },
+    deviceScaleFactor: 2,
   });
   const page = await context.newPage();
   await page.goto(url, { waitUntil: 'networkidle' });
+
+  // Playwright's own recordVideo captures well below the surface resolution.
+  // A CDP screencast reads the full device-pixel-ratio surface instead.
+  const shots = path.join(TMP, 'ui');
+  await mkdir(shots, { recursive: true });
+  const client = await context.newCDPSession(page);
+  const stamps = [];
+  const writes = [];
+  let frameNo = 0;
+  client.on('Page.screencastFrame', ({ data, sessionId, metadata }) => {
+    client.send('Page.screencastFrameAck', { sessionId }).catch(() => {});
+    stamps.push(metadata.timestamp);
+    const file = path.join(shots, `${String(frameNo++).padStart(5, '0')}.jpg`);
+    writes.push(writeFile(file, Buffer.from(data, 'base64')));
+  });
+  await client.send('Page.startScreencast', {
+    format: 'jpeg', quality: 96, maxWidth: 1920, maxHeight: 1080, everyNthFrame: 1,
+  });
   await page.addInitScript(CURSOR);
   await page.evaluate(CURSOR);
   await page.waitForTimeout(700);
@@ -236,18 +259,32 @@ async function recordInterface(browser, url) {
   await page.evaluate(() => document.getElementById('__cursor')?.remove());
   await page.waitForTimeout(1200);
 
-  const video = page.video();
+  await client.send('Page.stopScreencast');
+  await Promise.all(writes);
   await context.close();
-  const raw = await video.path();
+
+  // Screencast frames arrive at whatever rate the page can manage. Feeding
+  // ffmpeg the real per-frame durations keeps the pace true regardless.
+  const name = (i) => path.join(shots, `${String(i).padStart(5, '0')}.jpg`);
+  const lines = [];
+  for (let i = 0; i < frameNo; i++) {
+    const next = stamps[i + 1] ?? stamps[i] + 0.04;
+    const dt = Math.min(0.5, Math.max(0.005, next - stamps[i]));
+    lines.push(`file '${name(i)}'`, `duration ${dt.toFixed(4)}`);
+  }
+  lines.push(`file '${name(frameNo - 1)}'`);
+  const list = path.join(TMP, 'ui-frames.txt');
+  await writeFile(list, lines.join('\n'));
 
   await ffmpeg([
-    '-i', raw,
-    '-c:v', 'libx264', '-preset', 'slow', '-crf', '22',
-    '-pix_fmt', 'yuv420p', '-movflags', '+faststart',
-    '-vf', 'scale=1440:-2',
+    '-f', 'concat', '-safe', '0', '-i', list,
+    '-fps_mode', 'cfr', '-r', '30',
+    '-c:v', 'libx264', '-preset', 'slow', '-crf', '16',
+    '-tune', 'animation', '-pix_fmt', 'yuv420p', '-movflags', '+faststart',
     path.join(OUT, '02-interface.mp4'),
   ]);
-  console.log('  walkthrough done');
+  const secs = (stamps.at(-1) - stamps[0]).toFixed(1);
+  console.log(`  walkthrough done — ${frameNo} frames over ${secs}s`);
 }
 
 /* ---------------- main --------------------------------------------------- */
