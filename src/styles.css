@@ -580,3 +580,33 @@ input[type=range]:focus-visible{outline:2px solid var(--accent);outline-offset:4
 @media (prefers-reduced-motion:reduce){
   *{transition:none!important}
 }
+
+/* ---------- collection mode (?collect) ---------- */
+.collect{
+  position:fixed;
+  z-index:6;
+  right:30px;
+  top:calc(118px + env(safe-area-inset-top,0px));
+  padding:8px 14px;
+  border-radius:100px;
+  background:var(--glass);
+  border:1px solid var(--hair);
+  color:var(--ink-soft);
+  font-family:"DM Mono",ui-monospace,monospace;
+  font-size:11.5px;
+}
+.collect[data-state="on"]::before{
+  content:"";
+  display:inline-block;
+  width:7px;height:7px;margin-right:8px;
+  border-radius:50%;
+  background:var(--live);
+}
+.collect button{
+  font:inherit;
+  color:var(--accent);
+  background:none;
+  border:0;
+  padding:0;
+  cursor:pointer;
+}

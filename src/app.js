@@ -7,12 +7,16 @@ import { SEEDS, fromStroke } from './seeds.js';
 import { Renderer, Sparkline } from './renderer.js';
 import { Slider } from './slider.js';
 import { enhanceSelect } from './select.js';
+import { startCollector } from './collect.js';
 
 const $ = (id) => document.getElementById(id);
 
 const sim = new DifferentialGrowth();
 const renderer = new Renderer($('stage'));
 const spark = new Sparkline($('spark'));
+
+// ?collect in the URL saves every run to a local folder (see collect.js).
+const collector = startCollector(sim, () => state.seed);
 
 const state = {
   running: true,
@@ -433,4 +437,5 @@ for (let i = 0; i < 70; i++) {
   if (i % 5 === 0) spark.push(sim.nodes.length);
 }
 setRunning(false);
+collector?.arm();
 requestAnimationFrame(frame);
